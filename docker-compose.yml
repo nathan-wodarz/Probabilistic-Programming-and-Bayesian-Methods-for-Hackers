@@ -1,0 +1,18 @@
+version: "3"
+services:
+  tfp-notebook:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    volumes:
+      - ./notebooks:/usr/src/app
+      - ./tfp:/usr/src/app/tfp
+    ports:
+      - 8675:8989
+    command:
+      - jupyter
+      - notebook
+      - --port=8989
+      - --ip=0.0.0.0
+      - --allow-root
+      - --NotebookApp.password='sha1:f217aa434731:b01a46c5ffccfc413ccffc33c802882737ac2ccd'

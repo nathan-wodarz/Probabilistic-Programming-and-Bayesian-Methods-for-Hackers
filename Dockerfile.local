@@ -1,0 +1,69 @@
+FROM artifactory.chrobinson.com:5050/datascience/datascience-python38:1.0.5
+
+ARG USER_ID
+ARG GROUP_ID
+
+LABEL com.chrobinson.image.title="tfp-tutorial"
+LABEL com.chrobinson.maintainer="Nathan Wodarz"
+LABEL com.chrobinson.org="Data Science"
+
+RUN apt-get update --allow-releaseinfo-change && apt-get install -y nodejs wget graphviz
+
+ENV PYTHONDONTWRITEBYTECODE=true
+
+# install conda
+ENV PATH /opt/conda/bin:$PATH
+ENV CONDA_DEFAULT_ENV base
+RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2021.11-Linux-x86_64.sh -O ~/anaconda.sh && \
+    /bin/bash ~/anaconda.sh -b -p /opt/conda && \
+    rm ~/anaconda.sh && \
+    /opt/conda/bin/conda clean --all -y && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    /opt/conda/bin/conda update -n base -c defaults conda && \
+    /opt/conda/bin/conda install -c anaconda --yes pip
+
+RUN if [ ${USER_ID:-0} -ne 0 ] && [ ${GROUP_ID:-0} -ne 0 ]; then \
+    groupadd -g ${GROUP_ID} app && \
+    useradd -l -r -u ${USER_ID} -g app -d /usr/src/app -s /sbin/nologin -c "DockerUser" app &&\
+    chown app /usr/src/app \
+;else \
+    groupadd -r app && \
+    useradd -r -g app -d /usr/src/app -s /sbin/nologin -c "DockerUser" app && \
+    mkdir -p /usr/src/app && \
+    chown app /usr/src/app \
+;fi
+
+# install jupyter nbextensions (table of contents, etc.)
+RUN conda install -c conda-forge jupyter_contrib_nbextensions --yes \
+    && conda clean --all --yes
+
+# for each nbextension enabled here, make sure to also add to the nbconfig.json file
+# which the COPY command below installs in user app's .jupyter/nbconfig/ directory
+RUN python -m pip install jupyter_contrib_nbextensions \
+    && jupyter contrib nbextension install --skip-running-check \
+    && jupyter nbextension enable nbextensions_configurator/config_menu/main \
+    && jupyter nbextension enable contrib_nbextensions_help_item/main \
+    && jupyter nbextension enable python-markdown/main \
+    && jupyter nbextension enable toc2/main \
+    && jupyter nbextension enable collapsible_headings/main \
+    && jupyter nbextension enable exercise2/main \
+    && jupyter nbextension enable execute_time/ExecuteTime
+
+# install pymc using conda per:
+# https://github.com/pymc-devs/pymc/wiki/Installation-Guide-(Linux)#pymc3-installation-for-linux
+RUN conda install -c conda-forge pymc3 theano-pymc mkl mkl-service \
+    && conda clean --all --yes
+
+# additional pip packages not included with conda, or other pinned versions
+COPY requirements.txt ./
+# RUN --mount=type=cache,target=/root/.cache pip install -r requirements-nb.txt && conda clean --all --yes
+RUN pip install -r requirements.txt && conda clean --all --yes
+
+# copy in the nbconfig.json so non-root user can use jupyter nbextensions
+RUN mkdir -p /usr/src/app/.jupyter/nbconfig
+COPY nbconfig.json /usr/src/app/.jupyter/nbconfig
+
+WORKDIR /usr/src/app
+RUN chown -R app /usr/src/app
+USER app
