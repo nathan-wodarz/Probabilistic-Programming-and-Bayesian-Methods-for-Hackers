@@ -1,5 +1,5 @@
-NB_DOCKERFILE := nb.Dockerfile
-NB_NAME := wodanat-bayesian
+NB_DOCKERFILE := Dockerfile.local
+NB_NAME := tfp-tutorial
 NB_PORT := 8675
 DOCKER_ARGS := --build-arg USER_ID=$(shell id -u ${USER}) --build-arg GROUP_ID=$(shell id -g ${USER})
 .DEFAULT_GOAL := help
